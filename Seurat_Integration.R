@@ -13,12 +13,15 @@ dir.create("results-BM123barnyard_5_500_mod")
 #zcat features.tsv.gz | sed 's/soy4_//g' | gzip - > features1.tsv.gz
 ############################################################################################
 
+# Loading of data
+
 BjapMay.data <- Read10X(data.dir = "../Soy4.May5_filtered_feature_bc_matrix/oryg")
 BjapMay <- CreateSeuratObject(counts = BjapMay.data, project = "Bjap_May")
 
 BjapMay
 
-####
+# removing dublets found earlier via Python script
+
 keepers_BjapMay <- try(read.table("./soy4may.keepers.uniq"))
 if (class(keepers_BjapMay) == 'try-error') {
 keepers_BjapMay=NULL
