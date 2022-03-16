@@ -1,0 +1,106 @@
+cat contamination.fa Bdi_tRNA_Genes.fa Bdi_SRPRNA_Gene.fa Bdi_snRNA_Gene.fa Bdi_snoRNA_Gene.fa Bdi_senseIntronic_Gene.fa Bdi_rRNA_Gene.fa Bdi_RNAseMRPRNA_Gene.fa Bdi_antisenseRNA_Gene.fa hairpinT.fa /home/ravwoy/DANE2/Hasterok/Pilot/Bhybridum/v1.1/annotation/Bhybridum_463_v1.1.cds.fa > library_composition.fa
+
+/home/ravwoy/Software/bowtie-1.3.0-linux-x86_64/bowtie-build -q --threads 20 library_composition.fa library_composition
+
+/home/ravwoy/Software/bowtie-1.3.0-linux-x86_64/bowtie-build -q --threads 20 contamination.fa contamination_rRNA
+
+grep '>' contamination.fa
+>polyA
+>ployC
+>Adap1
+>Adap2
+>Adap3
+>Adap4
+>Adap5
+>Adap6
+>Adap7
+>Adap8
+>phix
+
+
+/home/ravwoy/Software/bowtie-1.3.0-linux-x86_64/bowtie-build -q --threads 20 rRNAs_silva_ensembl.fasta rRNAs_silva_ensembl
+
+
+echo --------------trimming sequneces
+cutadapt -m 10 -M 50 -j 20 -q 30 -o $filename.1.trim.fq.gz -p $filename.2.trim.fq.gz -z -g GTTCAGAGTTCTACAGTCCGACGATC -a TGGAATTCTCGGGTGCCAAGG -G CCTTGGCACCCGAGAATTCCA -A GATCGTCGGACTGTAGAACTCTGAAC ./miRNA/$read1 ./miRNA/$read2 >> report_srna.$filename.trim.out
+
+echo ---------------quality check of trimmed sequences
+fastqc -q -t 2 $filename.1.trim.fq.gz $filename.2.trim.fq.gz
+
+echo -----------------combining trimmed sequences from read1 and read2
+/home/ravwoy/Software/FLASH-1.2.11-Linux-x86_64/flash -q --output-prefix=$filename.flash -M 50 -x 0.05 -z -t 1 $filename.1.trim.fq.gz $filename.2.trim.fq.gz 2>&1 | tee $filename.flash.log
+
+plik=$filename.flash.extendedFrags.fastq.gz; zcat $plik | wc -l > tmp; cat tmp | awk '{print $1/4}' > tmp1; nos=$(cat tmp1); echo "no of reads" $plik "=" $nos
+zcat $filename.flash.extendedFrags.fastq.gz | wc -l
+
+echo ------------------quality check of combined sequneces
+fastqc -q -t 3 $filename.flash.extendedFrags.fastq.gz $filename.flash.notCombined_1.fastq.gz $filename.flash.notCombined_2.fastq.gz
+
+echo ----------------aligning reads to different sequences for library composition
+/home/ravwoy/Software/bowtie-1.3.0-linux-x86_64/bowtie -S -v 1 -p 20 -M 1 --best --strata -x references/library_composition $filename.flash.extendedFrags.fastq.gz $filename.flash.extendedFrags.v1M1.lib_comp.sam
+cat $filename.flash.extendedFrags.v1M1.lib_comp.sam | grep -v '^@' | cut -f3 | sed 's/_rav_.*//' | sed 's/^\([a-z][a-z][a-z]\)-.*/\1/' | sed 's/Brahy.*/Brahy/' | sort -k1,1 | uniq -c | sed 's/^     //g' | sed 's/^    //g' | sed 's/^   //g' | sed 's/^  //g' | sed 's/^ //g' | sed 's/ /\t/' | sort -k1,1n > $filename.flash.extendedFrags.v1M1.lib_comp.sam.distribution.tmp
+cat $filename.flash.extendedFrags.v1M1.lib_comp.sam.distribution.tmp | cut -f1 > $filename.flash.extendedFrags.v1M1.lib_comp.sam.distribution.tmp.counts
+cat $filename.flash.extendedFrags.v1M1.lib_comp.sam.distribution.tmp | cut -f2 > $filename.flash.extendedFrags.v1M1.lib_comp.sam.distribution.tmp.names
+paste $filename.flash.extendedFrags.v1M1.lib_comp.sam.distribution.tmp.names $filename.flash.extendedFrags.v1M1.lib_comp.sam.distribution.tmp.counts > $filename.flash.extendedFrags.v1M1.lib_comp.sam.distribution
+
+samtools view --threads 20 -bS $filename.flash.extendedFrags.v1M1.lib_comp.sam > $filename.flash.extendedFrags.v1M1.lib_comp.bam
+#rm $filename.flash.extendedFrags.v1M1.lib_comp.sam
+
+echo "total reads/mappings:"
+samtools view --threads 20 -c $filename.flash.extendedFrags.v1M1.lib_comp.bam
+echo "reads mapped:"
+samtools view --threads 20 -c -F 4 $filename.flash.extendedFrags.v1M1.lib_comp.bam
+echo "reads unmapped:"
+samtools view --threads 20 -c -f 4 $filename.flash.extendedFrags.v1M1.lib_comp.bam
+
+echo -----------------aligning all combined reads to contamination
+/home/ravwoy/Software/bowtie-1.3.0-linux-x86_64/bowtie --un $filename.flash.extendedFrags.v1M1.contrRNA.unmapped.fastq -S -v 1 -p 20 -k 1 --best -x references/contamination_rRNA $filename.flash.extendedFrags.fastq.gz $filename.flash.extendedFrags.v1M1.contrRNA.sam
+
+samtools view --threads 20 -bS $filename.flash.extendedFrags.v1M1.contrRNA.sam > $filename.flash.extendedFrags.v1M1.contrRNA.bam
+rm $filename.flash.extendedFrags.v1M1.contrRNA.sam
+
+echo "total reads/mappings:"
+samtools view --threads 20 -c $filename.flash.extendedFrags.v1M1.contrRNA.bam
+echo "reads mapped:"
+samtools view --threads 20 -c -F 4 $filename.flash.extendedFrags.v1M1.contrRNA.bam
+echo "reads unmapped:"
+samtools view --threads 20 -c -f 4 $filename.flash.extendedFrags.v1M1.contrRNA.bam
+
+plik=$filename.flash.extendedFrags.v1M1.contrRNA.unmapped.fastq; cat $plik | wc -l > tmp; cat tmp | awk '{print $1/4}' > tmp1; nos=$(cat tmp1); echo "no of reads" $plik "=" $nos
+wc -l $filename.flash.extendedFrags.v1M1.contrRNA.unmapped.fastq
+
+echo -----------------aligning all combined reads not mapped to contamination to rRNAs_silva_ensembl
+/home/ravwoy/Software/bowtie-1.3.0-linux-x86_64/bowtie --un $filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.unmapped.fastq -S -v 1 -p 20 -k 1 --best -x references/rRNAs_silva_ensembl $filename.flash.extendedFrags.v1M1.contrRNA.unmapped.fastq $filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.sam
+
+samtools view --threads 20 -bS $filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.sam > $filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.bam
+rm $filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.sam
+
+echo "total reads/mappings:"
+samtools view --threads 20 -c $filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.bam
+echo "reads mapped:"
+samtools view --threads 20 -c -F 4 $filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.bam
+echo "reads unmapped:"
+samtools view --threads 20 -c -f 4 $filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.bam
+
+plik=$filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.unmapped.fastq; cat $plik | wc -l > tmp; cat tmp | awk '{print $1/4}' > tmp1; nos=$(cat tmp1); echo "no of reads" $plik "=" $nos
+wc -l $filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.unmapped.fastq
+
+###############################################################################################################################################################################################################
+echo -----------------------------------Known Bdi micro RNAs analysis after removing contamination
+
+echo ----------------collapsing reads not mapped to rRNAs_silva_ensembl and contamination
+/home/ravwoy/Software/bin/fastx_collapser -Q33 -i $filename.flash.extendedFrags.v1M1.rRNAs_silva_ensembl.unmapped.fastq -o $filename.feF_v1M1_rRNAs_silva_ensembl_unmapped_collapsed.fasta
+
+echo --------------mapping with microrazers collapsed reads not mapped to rRNAs_silva_ensembl and contamination_rRNA_ProtCodExons to mature miRNA sequences from Bdi
+/home/ravwoy/Software/micro_razers-1.0.1-Linux-x86_64/bin/micro_razers --max-hits 1 --purge-ambiguous mature.BdiT.fasta $filename.feF_v1M1_rRNAs_silva_ensembl_unmapped_collapsed.fasta
+
+cat $filename.feF_v1M1_rRNAs_silva_ensembl_unmapped_collapsed.fasta.result | cut -f1,5 > $filename.feF_v1M1_rRNAs_silva_ensembl_unmapped_collapsed.mature.BdiT.table
+
+mv $filename.feF_v1M1_rRNAs_silva_ensembl_unmapped_collapsed.fasta.result $filename.feF_v1M1_rRNAs_silva_ensembl_unmapped_collapsed.mature.BdiT.result
+
+cat $filename.feF_v1M1_rRNAs_silva_ensembl_unmapped_collapsed.mature.BdiT.table | sed 's/-/\t/' | sort -k3,3 -k1,1n | cut -f2,3 | awk '{ seen[$2] += $1 } END { for (i in seen) print i,"\t",seen[i] }' > $filename.feF_v1M1_rRNAs_silva_ensembl_unmapped_collapsed.mature.BdiT.counts
+
+echo ----------------------------number of known Bdi microRNAs found
+wc -l $filename.feF_v1M1_rRNAs_silva_ensembl_unmapped_collapsed.mature.BdiT.counts
+
+
