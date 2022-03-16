@@ -1,5 +1,3 @@
-#/home/ravwoy/WORK/LibaultM/Ath_tests
-
 python
 import sys
 import numpy as np

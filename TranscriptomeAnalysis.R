@@ -1,65 +1,44 @@
-
-
-samples <- read.table(file.path("/home/ravwoy/WORK/HasterokR/RNA_Trial/salmon/pangenome", "samples.txt"), header=TRUE)
-
-files.NoDup <- file.path("/home/ravwoy/WORK/HasterokR/RNA_Trial/salmon/pangenome", "quants_NoDup", samples$file, "quant.sf")
-
+# preparation of data
+samples <- read.table(file.path("/RNA_Trial/salmon/pangenome", "samples.txt"), header=TRUE)
+files.NoDup <- file.path("/RNA_Trial/salmon/pangenome", "quants_NoDup", samples$file, "quant.sf")
 names(files.NoDup) <- samples$name
-
 all(file.exists(files.NoDup))
 
+# adding gene annotation
 library(readr)
-
-tx2gene <- read_csv(file.path("/home/ravwoy/WORK/HasterokR/RNA_Trial/ref", "Bd30_txdb.csv"))
-
+tx2gene <- read_csv(file.path("/RNA_Trial/ref", "Bd30_txdb.csv"))
 head(tx2gene)
-
 library(tximport)
-
 txi.genes.NoDup <- tximport(files.NoDup, type = "salmon", tx2gene = tx2gene)
-
 head(txi.genes.NoDup$counts)
-
 txi.trans.NoDup <- tximport(files.NoDup, type = "salmon", txOut = TRUE)
-
 head(txi.trans.NoDup$counts)
-
 txi.sum.NoDup <- summarizeToGene(txi.trans.NoDup, tx2gene)
-
 all.equal(txi.genes.NoDup$counts, txi.sum.NoDup$counts)
-
 head(txi.sum.NoDup$counts)
-
 samples_DESeq <- samples
-
 rownames(samples_DESeq) <- samples$name
-
 samples_DESeq
 
 library(DESeq2)
 
-######################################
-
+# creating DESeq2 DataSet
 #dds.trans.noDup <- DESeqDataSetFromTximport(txi.trans.NoDup, colData = samples_DESeq, design = ~ stand)
-
 dds.trans.noDup <- DESeqDataSetFromTximport(txi.trans.NoDup, colData = samples_DESeq, design = ~ type)
 
+# filtering out genes with lowest number of reads
 keep <- rowSums(counts(dds.trans.noDup)) >= 10
-
 dds.trans.noDup.10 <- dds.trans.noDup[keep,]
-
 nrow(dds.trans.noDup.10)
 
+# transformation and data visualisations
 library(vsn)
-
 vsd.trans <- vst(dds.trans.noDup.10, blind=FALSE)
-
 rld.trans <- rlog(dds.trans.noDup.10, blind=FALSE)
 
 library("dplyr")
 library("ggplot2")
 
-################################################
 
 dds.trans.noDup.10.eSF <- estimateSizeFactors(dds.trans.noDup.10)
 
@@ -169,7 +148,7 @@ ggplot(mdsPois, aes(x = `1`, y = `2`, color = stand, shape = region)) +
   geom_point(size = 3) + coord_fixed() + ggtitle("MDS with PoissonDistances")
 dev.off()
 
-###################################################################################################################################################################
+# DE analysis
 
 dds.trans.noDup.10.deseq <- DESeq(dds.trans.noDup.10)
 

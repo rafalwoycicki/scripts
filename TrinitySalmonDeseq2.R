@@ -1,6 +1,6 @@
-samples <- read.table(file.path("/home/rafalwoycicki/Documents/BoczkowskaM", "samplesMajaSalmon.txt"), header=TRUE)
+samples <- read.table(file.path("", "samplesMajaSalmon.txt"), header=TRUE)
 
-files.NoDup <- file.path("/home/rafalwoycicki/Documents/BoczkowskaM", "quants_TrinityFR_lISF", samples$file, "quant.sf")
+files.NoDup <- file.path("", "quants_TrinityFR_lISF", samples$file, "quant.sf")
 
 names(files.NoDup) <- samples$name
 
@@ -9,7 +9,7 @@ all(file.exists(files.NoDup))
 library(readr)
 library(tximport)
 
-tx2gene <- read_csv(file.path("/home/rafalwoycicki/Documents/BoczkowskaM", "Trinity.fasta_txdb.csv"))
+tx2gene <- read_csv(file.path("", "Trinity.fasta_txdb.csv"))
 
 head(tx2gene)
 
